@@ -1,15 +1,18 @@
-import pkg from "pg";
-const { Pool } = pkg;
+// src/db.js
+import "dotenv/config";
+import pg from "pg";
 
-if (!process.env.DATABASE_URL) {
+const { Pool } = pg;
+
+const DATABASE_URL = process.env.DATABASE_URL;
+
+if (!DATABASE_URL) {
   throw new Error("Falta DATABASE_URL en variables de entorno");
 }
 
-export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }, // necesario en la mayoría de hosts + Supabase
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
 });
 
-export async function q(text, params) {
-  return pool.query(text, params);
-}
+export default pool;
