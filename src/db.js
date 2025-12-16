@@ -1,20 +1,15 @@
-import pg from "pg";
-import dotenv from "dotenv";
-dotenv.config();
+import pkg from "pg";
+const { Pool } = pkg;
 
-const { Pool } = pg;
-const isProd = process.env.NODE_ENV === "production";
+if (!process.env.DATABASE_URL) {
+  throw new Error("Falta DATABASE_URL en variables de entorno");
+}
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: isProd ? { rejectUnauthorized: false } : false
+  ssl: { rejectUnauthorized: false }, // necesario en la mayoría de hosts + Supabase
 });
 
 export async function q(text, params) {
-  const client = await pool.connect();
-  try {
-    return await client.query(text, params);
-  } finally {
-    client.release();
-  }
+  return pool.query(text, params);
 }
