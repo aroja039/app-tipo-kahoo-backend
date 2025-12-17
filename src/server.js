@@ -40,6 +40,18 @@ function backendBaseUrl(req) {
   return `${req.protocol}://${req.get("host")}`;
 }
 
+function buildPlayerUrl(code) {
+  const base = FRONTEND_URL.replace(/\/+$/, "");
+
+  let hash = FRONTEND_PLAYER_PATH.trim();
+  if (hash.startsWith("/")) hash = hash.slice(1); // '/#/player' -> '#/player'
+  if (!hash.startsWith("#")) hash = `#${hash}`;   // 'player' -> '#player'
+
+  // ✅ Query ANTES del hash (esto es lo que tu Flutter está leyendo)
+  // Ej: http://localhost:5000/?code=WJ5Y#/player
+  return `${base}/?code=${encodeURIComponent(code)}${hash}`;
+}
+
 // root
 app.get("/", (req, res) => {
   res.json({ ok: true, service: "app-tipo-kahoo-backend" });
@@ -57,20 +69,12 @@ app.post("/rooms", (req, res) => {
   res.json({ ok: true, roomCode, joinUrl });
 });
 
-// ✅ JOIN redirect (la pieza que te falta en Render)
+// JOIN redirect
 app.get("/join", (req, res) => {
   const code = String(req.query.code || "").trim();
   if (!code) return res.status(400).send("Missing ?code=XXXX");
 
-  const base = FRONTEND_URL.replace(/\/+$/, "");
-  let hash = FRONTEND_PLAYER_PATH;
-
-  // normaliza '#/player'
-  if (hash.startsWith("/")) hash = hash.slice(1); // '/#/player' -> '#/player'
-  if (!hash.startsWith("#")) hash = `#${hash}`;
-
-  // query ANTES del hash (mejor para Flutter)
-  const target = `${base}/?code=${encodeURIComponent(code)}${hash}`;
+  const target = buildPlayerUrl(code);
   return res.redirect(302, target);
 });
 
