@@ -1,17 +1,25 @@
-import { Router } from "express";
+// C:\Proyectos\App Tipo Kahoo\backend\src\routes\rooms.js
+import express from "express";
+import crypto from "crypto";
 
-const router = Router();
+const router = express.Router();
 
-function makeCode(len = 6) {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let out = "";
-  for (let i = 0; i < len; i++) out += chars[Math.floor(Math.random() * chars.length)];
-  return out;
+function genRoomCode(length = 6) {
+  // letras/números en mayúscula, sin símbolos raros
+  return crypto.randomBytes(16).toString("hex").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, length);
 }
 
 router.post("/", (req, res) => {
-  const roomCode = makeCode(6);
-  const joinUrl = `${req.protocol}://${req.get("host")}/?code=${roomCode}`;
+  const roomCode = genRoomCode(6);
+
+  // Si estás en Render, define PUBLIC_BASE_URL en Render:
+  // PUBLIC_BASE_URL=https://app-tipo-kahoo-backend.onrender.com
+  const baseUrl = (process.env.PUBLIC_BASE_URL && process.env.PUBLIC_BASE_URL.trim())
+    ? process.env.PUBLIC_BASE_URL.trim()
+    : `${req.protocol}://${req.get("host")}`;
+
+  const joinUrl = `${baseUrl}/?code=${roomCode}`;
+
   return res.json({ ok: true, roomCode, joinUrl });
 });
 
