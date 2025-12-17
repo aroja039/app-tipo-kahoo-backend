@@ -2,6 +2,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import crypto from "crypto";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -29,6 +30,15 @@ app.use(
   })
 );
 
+// =====================
+// In-memory "DB" (temporal)
+// =====================
+/**
+ * rooms: Map<roomCode, { code, createdAt, players: Array<{ id, name, joinedAt }> }>
+ * OJO: se reinicia si el server se reinicia (Render/Local).
+ */
+const rooms = new Map();
+
 function generateRoomCode(len = 4) {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let out = "";
@@ -48,8 +58,15 @@ function buildPlayerUrl(code) {
   if (!hash.startsWith("#")) hash = `#${hash}`;   // 'player' -> '#player'
 
   // ✅ Query ANTES del hash (esto es lo que tu Flutter está leyendo)
-  // Ej: http://localhost:5000/?code=WJ5Y#/player
+  // Ej: https://...web.app/?code=E32U#/player
   return `${base}/?code=${encodeURIComponent(code)}${hash}`;
+}
+
+function ensureRoom(code) {
+  if (!rooms.has(code)) {
+    rooms.set(code, { code, createdAt: Date.now(), players: [] });
+  }
+  return rooms.get(code);
 }
 
 // root
@@ -65,17 +82,59 @@ app.get("/health", (req, res) => {
 // create room
 app.post("/rooms", (req, res) => {
   const roomCode = generateRoomCode(4);
+
+  // guarda la sala
+  rooms.set(roomCode, { code: roomCode, createdAt: Date.now(), players: [] });
+
   const joinUrl = `${backendBaseUrl(req)}/join?code=${encodeURIComponent(roomCode)}`;
   res.json({ ok: true, roomCode, joinUrl });
 });
 
-// JOIN redirect
+// JOIN redirect (QR -> frontend player)
 app.get("/join", (req, res) => {
   const code = String(req.query.code || "").trim();
   if (!code) return res.status(400).send("Missing ?code=XXXX");
 
+  // opcional: si no existe, la creamos igual (modo demo)
+  ensureRoom(code);
+
   const target = buildPlayerUrl(code);
   return res.redirect(302, target);
+});
+
+// ✅ Player JOIN real (REST)
+app.post("/rooms/:code/join", (req, res) => {
+  const code = String(req.params.code || "").trim().toUpperCase();
+  if (!code) return res.status(400).json({ ok: false, error: "Missing room code" });
+
+  const room = rooms.get(code);
+  if (!room) return res.status(404).json({ ok: false, error: "Room not found" });
+
+  const nameRaw = (req.body?.name ?? "").toString().trim();
+  const name = nameRaw.length ? nameRaw : "Player";
+
+  const player = {
+    id: crypto.randomUUID(),
+    name,
+    joinedAt: Date.now(),
+  };
+
+  room.players.push(player);
+
+  return res.json({
+    ok: true,
+    roomCode: code,
+    player,
+    playersCount: room.players.length,
+  });
+});
+
+// (opcional) ver sala y jugadores (para debug)
+app.get("/rooms/:code", (req, res) => {
+  const code = String(req.params.code || "").trim().toUpperCase();
+  const room = rooms.get(code);
+  if (!room) return res.status(404).json({ ok: false, error: "Room not found" });
+  res.json({ ok: true, room });
 });
 
 app.listen(PORT, () => {
